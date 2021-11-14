@@ -29,17 +29,19 @@ type SimulationEngine struct {
 	IlEventos      EventList             //Lista de eventos a procesar
 	ivTransResults []ResultadoTransition // slice dinamico con los resultados
 	EventNumber    float64               // cantidad de eventos ejecutados
+	Log            *Logger
 }
 
 // MakeMotorSimulation : inicializar SimulationEngine struct
-func MakeMotorSimulation(alLaLef Lefs) SimulationEngine {
+func MakeMotorSimulation(alLaLef Lefs, logger *Logger, sendEv chan Event) SimulationEngine {
 	m := SimulationEngine{}
 
 	m.iiRelojlocal = 0
 	m.ilMislefs = alLaLef
-	m.IlEventos = MakeEventList(100) //aun siendo dinamicos...
-	m.ivTransResults = make([]ResultadoTransition, 0, 100)
+	m.IlEventos = make(EventList, 0)
+	m.ivTransResults = make([]ResultadoTransition, 0)
 	m.EventNumber = 0
+	m.Log = logger
 
 	return m
 }
@@ -81,8 +83,7 @@ func (se *SimulationEngine) fireEnabledTransitions(aiLocalClock TypeClock) {
 		se.dispararTransicion(liCodTrans)
 
 		// Anotar el Resultado que disparo la liCodTrans en tiempoaiLocalClock
-		se.ivTransResults = append(se.ivTransResults,
-			ResultadoTransition{liCodTrans, aiLocalClock})
+		se.ivTransResults = append(se.ivTransResults, ResultadoTransition{liCodTrans, aiLocalClock})
 	}
 }
 
@@ -92,15 +93,20 @@ func (se *SimulationEngine) tratarEventos() {
 	aiTiempo := se.iiRelojlocal
 
 	for se.IlEventos.hayEventos(aiTiempo) {
+		fmt.Println(se.IlEventos)
 		leEvento = se.IlEventos.popPrimerEvento() // extraer evento más reciente
 
 		idTr := leEvento.IiTransicion // obtener transición del evento
 		trList := se.ilMislefs.IaRed  // obtener lista de transiciones de Lefs
 
-		// Establecer nuevo valor de la funcion
-		trList[idTr].updateFuncValue(leEvento.IiCte)
-		// Establecer nuevo valor del tiempo
-		trList[idTr].actualizaTiempo(leEvento.IiTiempo)
+		if idTr < 0 {
+			fmt.Println("Propagar evento fuera")
+		} else {
+			// Establecer nuevo valor de la funcion
+			trList[idTr].updateFuncValue(leEvento.IiCte)
+			// Establecer nuevo valor del tiempo
+			trList[idTr].actualizaTiempo(leEvento.IiTiempo)
+		}
 
 		se.EventNumber++
 	}
@@ -126,7 +132,7 @@ func (se SimulationEngine) devolverResultados() {
 	for _, liResult := range se.ivTransResults {
 		resultados +=
 			"TIEMPO: " + fmt.Sprintf("%v", liResult.ValorRelojDisparo) +
-			" -> TRANSICION: " + fmt.Sprintf("%v", liResult.CodTransition) + "\n"
+				" -> TRANSICION: " + fmt.Sprintf("%v", liResult.CodTransition) + "\n"
 	}
 
 	resultados += "\n ========== TOTAL DE TRANSICIONES DISPARADAS = " +
@@ -139,16 +145,16 @@ func (se SimulationEngine) devolverResultados() {
 func (se *SimulationEngine) simularUnpaso(CicloFinal TypeClock) {
 	se.ilMislefs.actualizaSensibilizadas(se.iiRelojlocal)
 
-    fmt.Println("-----------Stack de transiciones sensibilizadas---------")
-    se.ilMislefs.IsTransSensib.ImprimeTransStack()
-	fmt.Println("-----------Final Stack de transiciones---------")
+	se.Log.NoFmtLog.Println("-----------Stack de transiciones sensibilizadas---------")
+	se.ilMislefs.IsTransSensib.ImprimeTransStack(se.Log)
+	se.Log.NoFmtLog.Println("-----------Final Stack de transiciones---------")
 
-    // Fire enabled transitions and produce events
+	// Fire enabled transitions and produce events
 	se.fireEnabledTransitions(se.iiRelojlocal)
 
-    fmt.Println("-----------Lista eventos después de disparos---------")
-	se.IlEventos.Imprime()
-	fmt.Println("-----------Final lista eventos---------")
+	se.Log.NoFmtLog.Println("-----------Lista eventos después de disparos---------")
+	se.IlEventos.Imprime(se.Log)
+	se.Log.NoFmtLog.Println("-----------Final lista eventos---------")
 
 	// advance local clock to soonest available event
 	if se.iiRelojlocal = se.avanzarTiempo(); se.iiRelojlocal == -1 {
@@ -172,8 +178,8 @@ func (se *SimulationEngine) SimularPeriodo(CicloInicial, CicloFinal TypeClock) {
 
 	for se.iiRelojlocal < CicloFinal {
 		///*		//DEPURACION
-				fmt.Println("RELOJ LOCAL !!!  = ", se.iiRelojlocal)
-				se.ilMislefs.ImprimeLefs()
+		se.Log.NoFmtLog.Println("RELOJ LOCAL !!!  = ", se.iiRelojlocal)
+		se.ilMislefs.ImprimeLefs(se.Log)
 		//*/
 		se.simularUnpaso(CicloFinal)
 	}

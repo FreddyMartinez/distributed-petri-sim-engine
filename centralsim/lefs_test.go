@@ -12,5 +12,6 @@ func TestLefsLoad(t *testing.T) {
 		println("Couln't load th pn file !")
 	}
 
-	lefs.ImprimeLefs()
+	log := CreateLogger("0")
+	lefs.ImprimeLefs(log)
 }

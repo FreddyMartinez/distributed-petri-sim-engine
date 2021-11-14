@@ -1,8 +1,6 @@
 //Package centralsim with several files to offer a centralized simulation
 package centralsim
 
-import "fmt"
-
 // Event define el evento básico de simulación
 type Event struct {
 	// Tiempo para el que debemos considerar el evento
@@ -62,11 +60,11 @@ func (e Event) getCte() TypeConst {
 }
 
 // Imprime atributos de evento para depurar errores
-func (e Event) Imprime(i int) {
-	fmt.Println("  Evento -> ", i)
-	fmt.Println("    TIEMPO: ", e.IiTiempo)
-	fmt.Println("    TRANSICION: ", e.IiTransicion)
-	fmt.Println("    CONSTANTE: ", e.IiCte)
+func (e Event) Imprime(i int, log *Logger) {
+	log.Event.Println("  Evento -> ", i)
+	log.NoFmtLog.Println("    TIEMPO: ", e.IiTiempo)
+	log.NoFmtLog.Println("    TRANSICION: ", e.IiTransicion)
+	log.NoFmtLog.Println("    CONSTANTE: ", e.IiCte)
 }
 
 //----------------------------------------------------------------------------
@@ -76,9 +74,8 @@ func (e Event) Imprime(i int) {
 type EventList []Event
 
 // MakeEventList crea lista de tamaño aiLongitud
-func MakeEventList(capacidad int) EventList {
-	// cero length and capacidad capacity
-	return make(EventList, 0, capacidad)
+func MakeEventList() EventList {
+	return make(EventList, 0)
 }
 
 // longitud : numero de elementos de la lista eventos
@@ -127,14 +124,8 @@ func (el *EventList) eliminaPrimerEvento() {
 
 // getPrimerEvento toma el primer evento de la lista de eventos
 func (el *EventList) popPrimerEvento() Event {
-	/* fmt.Println("Lista antes de eliminar primer evento :")
-	(*self).il_eventos.Imprime()
-	*/
 	leEvento := el.leePrimerEvento()
 	el.eliminaPrimerEvento()
-	/*fmt.Println("Lista DESPUES de eliminar primer evento :")
-	(*self).il_eventos.Imprime()
-	*/
 	return leEvento
 }
 
@@ -162,10 +153,10 @@ func (el *EventList) hayEventos(aiTiempo TypeClock) bool {
 }
 
 // Imprime la lista de eventos para depurar errores
-func (el EventList) Imprime() {
-	fmt.Println("Estructura EventList")
+func (el EventList) Imprime(log *Logger) {
+	log.NoFmtLog.Println("Estructura EventList")
 	for i, e := range el {
-		e.Imprime(i)
+		e.Imprime(i, log)
 	}
 }
 

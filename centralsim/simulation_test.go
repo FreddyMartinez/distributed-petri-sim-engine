@@ -37,7 +37,8 @@ func TestSimulationEngine1(t *testing.T) {
 			},
 		},
 	}
-	ms := MakeMotorSimulation(lfs)
+	log := CreateLogger("0")
+	ms := MakeMotorSimulation(lfs, log)
 	ms.SimularPeriodo(0, 4) // ciclo 0 hasta ciclo 3
 }
 
@@ -52,7 +53,8 @@ func TestSimulationEngine2(t *testing.T) {
 		println("Couln't load th pn file !")
 	}
 
-	ms := MakeMotorSimulation(lefs)
+	log := CreateLogger("0")
+	ms := MakeMotorSimulation(lefs, log)
 
 	ms.SimularPeriodo(0, 8) // ciclo 0 hasta ciclo 8
 }

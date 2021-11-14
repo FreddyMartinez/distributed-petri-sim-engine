@@ -60,19 +60,19 @@ func (t *Transition) updateFuncValue(aiValLef TypeConst) {
 }
 
 // Imprime los atributos de una transicion para depurar errores
-func (t *Transition) Imprime() {
-	fmt.Println("Dato Transicion:")
-	fmt.Println("IDLOCALTRANSICION: ", t.IiIndLocal)
-	fmt.Println(" VALOR LEF: ", t.IiValorLef)
-	fmt.Println(" TIEMPO: ", t.IiTiempo)
-	fmt.Println(" DURACION DISPARO: ", t.IiDuracionDisparo)
-	fmt.Println(" LISTA DE CTES IUL: ")
+func (t *Transition) Imprime(log *Logger) {
+	log.NoFmtLog.Println("Dato Transicion:")
+	log.NoFmtLog.Println("IDLOCALTRANSICION: ", t.IiIndLocal)
+	log.NoFmtLog.Println(" VALOR LEF: ", t.IiValorLef)
+	log.NoFmtLog.Println(" TIEMPO: ", t.IiTiempo)
+	log.NoFmtLog.Println(" DURACION DISPARO: ", t.IiDuracionDisparo)
+	log.NoFmtLog.Println(" LISTA DE CTES IUL: ")
 	for _, v := range t.TransConstIul {
-		fmt.Println("\tTRANSICION: ", v[0], "\t\tCTE: ", v[1])
+		log.NoFmtLog.Println("\tTRANSICION: ", v[0], "\t\tCTE: ", v[1])
 	}
-	fmt.Println(" LISTA DE CTES PUL: ")
+	log.NoFmtLog.Println(" LISTA DE CTES PUL: ")
 	for _, v := range t.TransConstPul {
-		fmt.Println("\tTRANSICION: ", v[0], "\t\tCTE: ", v[1])
+		log.NoFmtLog.Println("\tTRANSICION: ", v[0], "\t\tCTE: ", v[1])
 	}
 }
 
@@ -100,9 +100,9 @@ func (lt TransitionList) length() IndLocalTrans {
 type TransitionStack []IndLocalTrans
 
 // MakeTransitionStack crea lista de tamaño aiLongitud
-func MakeTransitionStack(capacidad int) TransitionStack {
+func MakeTransitionStack() TransitionStack {
 	// cero length and capacidad capacity
-	return make(TransitionStack, 0, capacidad)
+	return make(TransitionStack, 0)
 }
 
 // push transition id to stack
@@ -127,12 +127,12 @@ func (st TransitionStack) isEmpty() bool {
 	return len(st) == 0
 }
 
-func (st TransitionStack) ImprimeTransStack() {
-    if st.isEmpty() {
-		fmt.Println("\tStack TRANSICIONES VACIA")
+func (st TransitionStack) ImprimeTransStack(log *Logger) {
+	if st.isEmpty() {
+		log.NoFmtLog.Println("\tStack TRANSICIONES VACIA")
 	} else {
 		for _, iTr := range st {
-			fmt.Println("\t\t\t",iTr)
+			log.NoFmtLog.Println("\t\t\t", iTr)
 		}
 	}
 }

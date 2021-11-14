@@ -37,7 +37,7 @@ func Load(filename string) (Lefs, error) {
 		return Lefs{}, err
 	}
 
-	result.IsTransSensib = MakeTransitionStack(100) //aun siendo dinamicos...
+	result.IsTransSensib = MakeTransitionStack()
 
 	return result, nil
 }
@@ -159,17 +159,17 @@ func (l Lefs) ImprimeTransiciones() {
 }
 
 // ImprimeLefs : Imprimir los atributos de la clase para depurar errores
-func (l Lefs) ImprimeLefs() {
+func (l Lefs) ImprimeLefs(log *Logger) {
 
-	fmt.Println("STRUCT LEFS")
+	log.NoFmtLog.Println("STRUCT LEFS")
 	//fmt.Println ("\tNº transiciones: ", self.ii_indice)
-	fmt.Println("\tNº transiciones: ", l.IaRed.length())
+	log.NoFmtLog.Println("\tNº transiciones: ", l.IaRed.length())
 
-	fmt.Println("------Lista transiciones---------")
+	log.NoFmtLog.Println("------Lista transiciones---------")
 	for _, tr := range l.IaRed {
-		tr.Imprime()
+		tr.Imprime(log)
 	}
-	fmt.Println("------Final lista transiciones---------")
+	log.NoFmtLog.Println("------Final lista transiciones---------")
 
-	fmt.Println("FINAL ESTRUCTURA LEFS")
+	log.NoFmtLog.Println("FINAL ESTRUCTURA LEFS")
 }
