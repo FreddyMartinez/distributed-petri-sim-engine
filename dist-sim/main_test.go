@@ -25,7 +25,6 @@ func TestMain(m *testing.M) {
 	// crear los 3 procesos
 	numProcesses, file := test2subnet()
 
-	print(numProcesses)
 	processes := helpers.ReadNetConfig(networkFile)
 	for i, proc := range processes {
 		if i == numProcesses {

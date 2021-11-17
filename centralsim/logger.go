@@ -11,10 +11,11 @@ import (
 Estructura usada para escribir en archivos de log locales
 */
 type Logger struct {
-	NoFmtLog *log.Logger
-	Event    *log.Logger
-	Mark     *log.Logger
-	GoVec    *govec.GoLog
+	NoFmtLog  *log.Logger
+	Tansition *log.Logger
+	Event     *log.Logger
+	Mark      *log.Logger
+	GoVec     *govec.GoLog
 }
 
 func CreateLogger(processId string) *Logger {
@@ -24,14 +25,15 @@ func CreateLogger(processId string) *Logger {
 	}
 
 	logger := log.New(file, processId+"\t", log.Ltime)
+	transition := log.New(file, processId+"\tTRANSITION:\t\t", log.Ltime)
 	event := log.New(file, processId+"\tEVENT: \t\t", log.Ltime)
-	mark := log.New(file, processId+"\tMARK: \t\t", log.Ltime)
+	mark := log.New(file, processId+"\tLOOKAHEAD: \t\t", log.Ltime)
 
 	defaultConfig := govec.GetDefaultConfig()
 	defaultConfig.UseTimestamps = true
 	goVector := govec.InitGoVector(processId, "/logs/govector/"+processId, defaultConfig)
 
-	return &Logger{Event: event, NoFmtLog: logger, Mark: mark, GoVec: goVector}
+	return &Logger{Event: event, NoFmtLog: logger, Tansition: transition, Mark: mark, GoVec: goVector}
 }
 
 func (log *Logger) GoVectLog(message string) {
