@@ -15,8 +15,9 @@ import (
 const SshPort = "22"
 const PrivateKeyPath = "/home/freedy/.ssh/id_rsa"
 
-// const user = "freedy"
-const user = "a846866"
+const user = "freedy"
+
+// const user = "a846866"
 
 func CreateSSHClient(host string) *ssh.Client {
 

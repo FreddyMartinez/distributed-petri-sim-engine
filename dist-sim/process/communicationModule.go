@@ -87,8 +87,8 @@ func (comMod *CommunicationModule) sender() {
 	for {
 		select {
 		case event := <-comMod.outgoingEventCh: // Recibe Evento que se debe propagar
-			msg := models.Message{MsgType: models.MsgEvent, Event: event}
 			processId := comMod.findProcessId(&event)
+			msg := models.Message{MsgType: models.MsgEvent, Event: event}
 
 			if processId == -1 {
 				panic("process not found")

@@ -30,3 +30,15 @@ func ReadNetConfig(fileName string) []models.ProcessInfo {
 
 	return myJson
 }
+
+func ReadNetTransitions(fileName string) []models.TransitionMap {
+	data := readFile(fileName)
+
+	var myJson []models.TransitionMap
+	err := json.Unmarshal(data, &myJson)
+	if err != nil {
+		panic(err)
+	}
+
+	return myJson
+}
