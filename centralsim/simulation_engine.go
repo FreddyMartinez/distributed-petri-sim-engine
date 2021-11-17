@@ -30,10 +30,19 @@ type SimulationEngine struct {
 	ivTransResults []ResultadoTransition // slice dinamico con los resultados
 	EventNumber    float64               // cantidad de eventos ejecutados
 	Log            *Logger
+	sendEventCh    chan Event
+	incomEventsCh  chan Event // Recibe eventos de otros procesos
+	reqLookAheadCh chan bool  // Canal para solicitar lookAhead
 }
 
-// MakeMotorSimulation : inicializar SimulationEngine struct
-func MakeMotorSimulation(alLaLef Lefs, logger *Logger, sendEv chan Event) SimulationEngine {
+// MakeSimulationEngine : inicializar SimulationEngine struct
+func MakeSimulationEngine(
+	alLaLef Lefs,
+	logger *Logger,
+	sendEv chan Event,
+	incommingEvent chan Event,
+	requestLookAhead chan bool) SimulationEngine {
+
 	m := SimulationEngine{}
 
 	m.iiRelojlocal = 0
@@ -42,6 +51,11 @@ func MakeMotorSimulation(alLaLef Lefs, logger *Logger, sendEv chan Event) Simula
 	m.ivTransResults = make([]ResultadoTransition, 0)
 	m.EventNumber = 0
 	m.Log = logger
+	m.sendEventCh = sendEv
+	m.incomEventsCh = incommingEvent
+	m.reqLookAheadCh = requestLookAhead
+
+	go m.manageIncommingEvents()
 
 	return m
 }
@@ -68,6 +82,16 @@ func (se *SimulationEngine) dispararTransicion(ilTr IndLocalTrans) {
 		se.IlEventos.inserta(Event{timeTrans + timeDur,
 			IndLocalTrans(trCo[0]),
 			TypeConst(trCo[1])})
+	}
+}
+
+// Rutina encargada de añadir eventos entrantes a la lista
+func (se *SimulationEngine) manageIncommingEvents() {
+	for {
+		select {
+		case event := <-se.incomEventsCh:
+			se.IlEventos.inserta(event)
+		}
 	}
 }
 
@@ -99,8 +123,8 @@ func (se *SimulationEngine) tratarEventos() {
 		idTr := leEvento.IiTransicion // obtener transición del evento
 		trList := se.ilMislefs.IaRed  // obtener lista de transiciones de Lefs
 
-		if idTr < 0 {
-			fmt.Println("Propagar evento fuera")
+		if idTr < 0 { // Enviar evento a la transición correspondiente
+			se.sendEventCh <- leEvento
 		} else {
 			// Establecer nuevo valor de la funcion
 			trList[idTr].updateFuncValue(leEvento.IiCte)
@@ -150,19 +174,26 @@ func (se *SimulationEngine) simularUnpaso(CicloFinal TypeClock) {
 	se.Log.NoFmtLog.Println("-----------Final Stack de transiciones---------")
 
 	// Fire enabled transitions and produce events
-	se.fireEnabledTransitions(se.iiRelojlocal)
+	if se.ilMislefs.haySensibilizadas() {
+		se.fireEnabledTransitions(se.iiRelojlocal)
+	}
 
 	se.Log.NoFmtLog.Println("-----------Lista eventos después de disparos---------")
 	se.IlEventos.Imprime(se.Log)
 	se.Log.NoFmtLog.Println("-----------Final lista eventos---------")
 
 	// advance local clock to soonest available event
-	if se.iiRelojlocal = se.avanzarTiempo(); se.iiRelojlocal == -1 {
+	if se.iiRelojlocal += 1; se.iiRelojlocal == -1 {
 		se.iiRelojlocal = CicloFinal
 	}
 
 	// if events exist for current local clock, process them
-	se.tratarEventos()
+	if se.IlEventos.hayEventos(se.iiRelojlocal) {
+		se.tratarEventos()
+	} else {
+		se.Log.Mark.Println("REQUEST LOOKAHEAD")
+		se.reqLookAheadCh <- true
+	}
 }
 
 // SimularPeriodo de una RdP
