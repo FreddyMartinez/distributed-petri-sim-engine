@@ -42,6 +42,16 @@ type Transition struct {
 	// 		en el tiempo de disparo de esta transicion, junto con la cte que
 	// 		tengo que propagar
 	TransConstPul [][2]int `json:"ii_listactes_PUL"`
+
+	// Tiempos de LookAhead
+	// cada valor corresponde con las transiciones de la subred
+	TiempoHastaMarca TiempoHasta `json:"iL_tiemposhastamarca"`
+
+	EsSalida bool `json:"ib_desalida"`
+}
+
+type TiempoHasta struct {
+	LiTiempos []int `json:"il_tiempos"`
 }
 
 // actualizaTiempo modifica el tiempo de la transicion dada
@@ -52,7 +62,7 @@ func (t *Transition) actualizaTiempo(aiTi TypeClock) {
 
 // updateFuncValue modifica valor funcion de sensibilizacion de transicion dada
 // RECIBE: Codigo de la transicion y valor con el que modificar
-//		OJO, no es el valor definitivo, sino la CTE a a�adir al valor que tenia
+//		OJO, no es el valor definitivo, sino la CTE a añadir al valor que tenia
 //		antes la funcion
 func (t *Transition) updateFuncValue(aiValLef TypeConst) {
 	// Modificacion del valor de la funcion lef
@@ -61,8 +71,7 @@ func (t *Transition) updateFuncValue(aiValLef TypeConst) {
 
 // Imprime los atributos de una transicion para depurar errores
 func (t *Transition) Imprime(log *Logger) {
-	log.NoFmtLog.Println("Dato Transicion:")
-	log.NoFmtLog.Println("IDLOCALTRANSICION: ", t.IiIndLocal)
+	log.Tansition.Println("ID GLOBAL: ", t.IiIndLocal)
 	log.NoFmtLog.Println(" VALOR LEF: ", t.IiValorLef)
 	log.NoFmtLog.Println(" TIEMPO: ", t.IiTiempo)
 	log.NoFmtLog.Println(" DURACION DISPARO: ", t.IiDuracionDisparo)
@@ -73,6 +82,9 @@ func (t *Transition) Imprime(log *Logger) {
 	log.NoFmtLog.Println(" LISTA DE CTES PUL: ")
 	for _, v := range t.TransConstPul {
 		log.NoFmtLog.Println("\tTRANSICION: ", v[0], "\t\tCTE: ", v[1])
+	}
+	if t.EsSalida {
+		log.NoFmtLog.Println("\tTIEMPOS LOOKAHEAD: ", t.TiempoHastaMarca.LiTiempos)
 	}
 }
 
