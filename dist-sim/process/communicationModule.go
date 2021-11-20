@@ -14,12 +14,12 @@ type CommunicationModule struct {
 	transitionsMap        []models.TransitionMap // Información de las transiciones en cada nodo
 	listener              net.Listener
 	logger                *centralsim.Logger
-	outgoingEventCh       chan centralsim.Event // Canal para envío de Eventos
-	incomingEventCh       chan centralsim.Event // Canal para recibir eventos generados en otros procesos
-	reqLookAheadCh        chan bool             // Canal para solicitar LookAhead a proceso precedente
-	receiveLookAheadCh    chan int              // Canal para recibir LookAhead de proceso precedente
-	receiveLookAheadReqCh chan int              // Recibe solicitud de LookAhead de proceso posterior
-	sendLookAheadCh       chan centralsim.Event // Envía LookAhead propio a proceso posterior
+	outgoingEventCh       chan centralsim.Event     // Canal para envío de Eventos
+	incomingEventCh       chan centralsim.Event     // Canal para recibir eventos generados en otros procesos
+	reqLookAheadCh        chan bool                 // Canal para solicitar LookAhead a proceso precedente
+	receiveLookAheadCh    chan centralsim.Event     // Canal para recibir LookAhead de proceso precedente
+	receiveLookAheadReqCh chan int                  // Recibe solicitud de LookAhead de proceso posterior
+	sendLookAheadCh       chan centralsim.LookAhead // Envía LookAhead propio a proceso posterior
 }
 
 func CreateCommunicationModule(
@@ -30,10 +30,10 @@ func CreateCommunicationModule(
 	sendEventCh chan centralsim.Event,
 	incomingEventCh chan centralsim.Event,
 	reqLookAheadCh chan bool,
-	receiveLACh chan int,
+	receiveLACh chan centralsim.Event,
 	receiveLAReqCh chan int,
-	sendLookAheadCh chan centralsim.Event,
-) CommunicationModule {
+	sendLookAheadCh chan centralsim.LookAhead,
+) *CommunicationModule {
 
 	process := network[pid]
 	listener, err := net.Listen("tcp", ":"+process.Port)
@@ -58,7 +58,7 @@ func CreateCommunicationModule(
 	// Se lanzan rutinas para enviar y recibir mensajes
 	go cm.sender()
 	go cm.receiver()
-	return cm
+	return &cm
 }
 
 // Rutina encargada de los mensajes que entran
@@ -78,6 +78,8 @@ func (comMod *CommunicationModule) receiver() {
 			comMod.incomingEventCh <- data.Event
 		case models.MsgLookAheadRequest: // Otro proceso solicita Lookhead
 			comMod.receiveLookAheadReqCh <- data.Sender
+		case models.MsgLookAhead: // Recibe el LookAhead de otro proceso
+			comMod.receiveLookAheadCh <- data.Event
 		}
 	}
 }
@@ -103,15 +105,28 @@ func (comMod *CommunicationModule) sender() {
 			comMod.logger.Mark.Println("SOLICITA LOOKAHEAD")
 			msg := models.Message{MsgType: models.MsgLookAheadRequest, Sender: comMod.pId}
 			comMod.logger.NoFmtLog.Println(msg)
+
+			for i, proc := range comMod.networkInfo { // Enviar solicitud a todos los procesos precedentes
+				if i != comMod.pId {
+					helpers.Send(msg, proc.Ip+":"+proc.Port)
+				}
+			}
+
+		case la := <-comMod.sendLookAheadCh: // El proceso envía LookAhead calculado a el proceso que lo solicita
+
+			msg := models.Message{MsgType: models.MsgLookAhead, Event: la.ExpectedEvent, Sender: comMod.pId}
+			proc := comMod.networkInfo[la.Process]
+			helpers.Send(msg, proc.Ip+":"+proc.Port)
 		}
 	}
 }
 
+// Permite encontrar el proceso al que se debe enviar un evento
 func (comMod *CommunicationModule) findProcessId(event *centralsim.Event) int {
 	globalId := -1 * (int(event.IiTransicion) + 1)
 	event.IiTransicion = centralsim.IndLocalTrans(globalId)
 	for i, p := range comMod.transitionsMap {
-		for _, t := range p {
+		for _, t := range p.Transitions {
 			if t == globalId {
 				return i
 			}

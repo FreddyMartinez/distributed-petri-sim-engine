@@ -10,6 +10,7 @@ package centralsim
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -24,15 +25,19 @@ type ResultadoTransition struct {
 
 // SimulationEngine is the basic data type for simulation execution
 type SimulationEngine struct {
-	iiRelojlocal   TypeClock             // Valor de mi reloj local
-	ilMislefs      Lefs                  // Estructura de datos del simulador
-	IlEventos      EventList             //Lista de eventos a procesar
-	ivTransResults []ResultadoTransition // slice dinamico con los resultados
-	EventNumber    float64               // cantidad de eventos ejecutados
-	Log            *Logger
-	sendEventCh    chan Event
-	incomEventsCh  chan Event // Recibe eventos de otros procesos
-	reqLookAheadCh chan bool  // Canal para solicitar lookAhead
+	iiRelojlocal          TypeClock             // Valor de mi reloj local
+	ilMislefs             Lefs                  // Estructura de datos del simulador
+	IlEventos             EventList             //Lista de eventos a procesar
+	ivTransResults        []ResultadoTransition // slice dinamico con los resultados
+	EventNumber           float64               // cantidad de eventos ejecutados
+	Log                   *Logger
+	sendEventCh           chan Event
+	incomEventsCh         chan Event     // Recibe eventos de otros procesos
+	reqLookAheadCh        chan bool      // Canal para solicitar lookAhead
+	receiveLookAheadCh    chan Event     // Canal para recibir LookAhead de proceso precedente
+	receiveLookAheadReqCh chan int       // Recibe solicitud de LookAhead de proceso posterior
+	sendLookAheadCh       chan LookAhead // Envía LookAhead propio a proceso posterior
+	mux                   sync.Mutex
 }
 
 // MakeSimulationEngine : inicializar SimulationEngine struct
@@ -40,8 +45,12 @@ func MakeSimulationEngine(
 	alLaLef Lefs,
 	logger *Logger,
 	sendEv chan Event,
-	incommingEvent chan Event,
-	requestLookAhead chan bool) SimulationEngine {
+	incomingEvent chan Event,
+	requestLookAhead chan bool,
+	receiveLACh chan Event,
+	receiveLAReqCh chan int,
+	sendLookAheadCh chan LookAhead,
+) *SimulationEngine {
 
 	m := SimulationEngine{}
 
@@ -52,12 +61,17 @@ func MakeSimulationEngine(
 	m.EventNumber = 0
 	m.Log = logger
 	m.sendEventCh = sendEv
-	m.incomEventsCh = incommingEvent
+	m.incomEventsCh = incomingEvent
 	m.reqLookAheadCh = requestLookAhead
+	m.receiveLookAheadCh = receiveLACh
+	m.receiveLookAheadReqCh = receiveLAReqCh
+	m.sendLookAheadCh = sendLookAheadCh
+	m.mux = sync.Mutex{}
 
 	go m.manageIncommingEvents()
+	go m.CalculateLookAhead()
 
-	return m
+	return &m
 }
 
 // disparar una transicion. Esto es, generar todos los eventos
@@ -73,7 +87,8 @@ func (se *SimulationEngine) dispararTransicion(ilTr IndLocalTrans) {
 
 	// First apply Iul propagations (Inmediate : 0 propagation time)
 	for _, trCo := range listIul {
-		trList[IndLocalTrans(trCo[0])].updateFuncValue(TypeConst(trCo[1]))
+		localIndex := IndLocalTrans(trCo[0]) - se.ilMislefs.IaRed[0].IiIndLocal // Se normaliza con el menor id de transición
+		trList[localIndex].updateFuncValue(TypeConst(trCo[1]))
 	}
 
 	// Generamos eventos ocurridos por disparo de transicion ilTr
@@ -82,16 +97,6 @@ func (se *SimulationEngine) dispararTransicion(ilTr IndLocalTrans) {
 		se.IlEventos.inserta(Event{timeTrans + timeDur,
 			IndLocalTrans(trCo[0]),
 			TypeConst(trCo[1])})
-	}
-}
-
-// Rutina encargada de añadir eventos entrantes a la lista
-func (se *SimulationEngine) manageIncommingEvents() {
-	for {
-		select {
-		case event := <-se.incomEventsCh:
-			se.IlEventos.inserta(event)
-		}
 	}
 }
 
@@ -107,7 +112,7 @@ func (se *SimulationEngine) fireEnabledTransitions(aiLocalClock TypeClock) {
 		se.dispararTransicion(liCodTrans)
 
 		// Anotar el Resultado que disparo la liCodTrans en tiempoaiLocalClock
-		se.ivTransResults = append(se.ivTransResults, ResultadoTransition{liCodTrans, aiLocalClock})
+		se.ivTransResults = append(se.ivTransResults, ResultadoTransition{se.ilMislefs.IaRed[liCodTrans].IiIndLocal, aiLocalClock})
 	}
 }
 
@@ -116,6 +121,7 @@ func (se *SimulationEngine) tratarEventos() {
 	var leEvento Event
 	aiTiempo := se.iiRelojlocal
 
+	se.mux.Lock()
 	for se.IlEventos.hayEventos(aiTiempo) {
 		fmt.Println(se.IlEventos)
 		leEvento = se.IlEventos.popPrimerEvento() // extraer evento más reciente
@@ -126,6 +132,7 @@ func (se *SimulationEngine) tratarEventos() {
 		if idTr < 0 { // Enviar evento a la transición correspondiente
 			se.sendEventCh <- leEvento
 		} else {
+			idTr -= se.ilMislefs.IaRed[0].IiIndLocal // Normalizar el índice
 			// Establecer nuevo valor de la funcion
 			trList[idTr].updateFuncValue(leEvento.IiCte)
 			// Establecer nuevo valor del tiempo
@@ -134,6 +141,7 @@ func (se *SimulationEngine) tratarEventos() {
 
 		se.EventNumber++
 	}
+	se.mux.Unlock()
 }
 
 // avanzarTiempo : Modifica reloj local con minimo tiempo de entre
@@ -145,7 +153,7 @@ func (se *SimulationEngine) avanzarTiempo() TypeClock {
 }
 
 // devolverResultados : Mostrar los resultados de la simulacion
-func (se SimulationEngine) devolverResultados() {
+func (se *SimulationEngine) devolverResultados() {
 	resultados := "----------------------------------------\n"
 	resultados += "Resultados del simulador local\n"
 	resultados += "----------------------------------------\n"
@@ -182,17 +190,28 @@ func (se *SimulationEngine) simularUnpaso(CicloFinal TypeClock) {
 	se.IlEventos.Imprime(se.Log)
 	se.Log.NoFmtLog.Println("-----------Final lista eventos---------")
 
-	// advance local clock to soonest available event
-	if se.iiRelojlocal += 1; se.iiRelojlocal == -1 {
-		se.iiRelojlocal = CicloFinal
-	}
+	// advance local clock
+	se.iiRelojlocal += 1
 
 	// if events exist for current local clock, process them
 	if se.IlEventos.hayEventos(se.iiRelojlocal) {
 		se.tratarEventos()
-	} else {
-		se.Log.Mark.Println("REQUEST LOOKAHEAD")
-		se.reqLookAheadCh <- true
+	} else { // si no hay eventos para el tiempo de simulación actual
+		eventListLen := len(se.IlEventos)
+
+		if eventListLen == 0 {
+			// solicita Look Ahead
+			se.reqLookAheadCh <- true
+			// espera Look Ahead
+			ev := <-se.receiveLookAheadCh
+			se.Log.Mark.Println("Recibe LA", ev)
+		} else { // Hay eventos en la lista
+			// TODO
+			se.iiRelojlocal = se.avanzarTiempo()
+			se.Log.Mark.Println("Aqui avanza el tiempo -> ", se.iiRelojlocal)
+			se.tratarEventos()
+		}
+
 	}
 }
 

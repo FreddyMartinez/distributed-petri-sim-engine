@@ -72,9 +72,8 @@ func (t *Transition) updateFuncValue(aiValLef TypeConst) {
 // Imprime los atributos de una transicion para depurar errores
 func (t *Transition) Imprime(log *Logger) {
 	log.Tansition.Println("ID GLOBAL: ", t.IiIndLocal)
-	log.NoFmtLog.Println(" VALOR LEF: ", t.IiValorLef)
-	log.NoFmtLog.Println(" TIEMPO: ", t.IiTiempo)
-	log.NoFmtLog.Println(" DURACION DISPARO: ", t.IiDuracionDisparo)
+	log.NoFmtLog.Println(
+		fmt.Sprintf("VALOR LEF: %v TIEMPO: %v DURACION DISPARO: %v", t.IiValorLef, t.IiTiempo, t.IiDuracionDisparo))
 	log.NoFmtLog.Println(" LISTA DE CTES IUL: ")
 	for _, v := range t.TransConstIul {
 		log.NoFmtLog.Println("\tTRANSICION: ", v[0], "\t\tCTE: ", v[1])

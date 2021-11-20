@@ -1,6 +1,8 @@
 //Package centralsim with several files to offer a centralized simulation
 package centralsim
 
+import "fmt"
+
 // Event define el evento básico de simulación
 type Event struct {
 	// Tiempo para el que debemos considerar el evento
@@ -62,9 +64,8 @@ func (e Event) getCte() TypeConst {
 // Imprime atributos de evento para depurar errores
 func (e Event) Imprime(i int, log *Logger) {
 	log.Event.Println("  Evento -> ", i)
-	log.NoFmtLog.Println("    TIEMPO: ", e.IiTiempo)
-	log.NoFmtLog.Println("    TRANSICION: ", e.IiTransicion)
-	log.NoFmtLog.Println("    CONSTANTE: ", e.IiCte)
+	log.NoFmtLog.Println(
+		fmt.Sprintf("    TIEMPO: %v  TRANSICION: %v  CONSTANTE: %v", e.IiTiempo, e.IiTransicion, e.IiCte))
 }
 
 //----------------------------------------------------------------------------
@@ -101,6 +102,14 @@ func (el *EventList) inserta(aeEvento Event) {
 	*el = append((*el)[:i], append([]Event{aeEvento}, (*el)[i:]...)...)
 
 	//fmt.Println("DESPUES de insertar : ", *self)
+}
+
+// recogePrimerEvento encolado
+func (el EventList) ListaEventosVacia() bool {
+	if len(el) > 0 {
+		return false
+	}
+	return true
 }
 
 // recogePrimerEvento encolado
@@ -154,7 +163,9 @@ func (el *EventList) hayEventos(aiTiempo TypeClock) bool {
 
 // Imprime la lista de eventos para depurar errores
 func (el EventList) Imprime(log *Logger) {
-	log.NoFmtLog.Println("Estructura EventList")
+	if len(el) == 0 {
+		log.NoFmtLog.Println("LISTA VACÍA")
+	}
 	for i, e := range el {
 		e.Imprime(i, log)
 	}
