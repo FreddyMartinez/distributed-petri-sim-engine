@@ -19,15 +19,16 @@ func CreateLogicProcess(pid int, network []models.ProcessInfo, netFileName strin
 		println("Couldn't load the Petri Net file !")
 	}
 
-	sendEventCh := make(chan centralsim.Event)         // Canal para enviar eventos
-	incomingEventCh := make(chan centralsim.Event)     // Canal para recibir eventos
-	requestLookAheadCh := make(chan bool)              // Canal para enviar solicitud de LA
-	receiveLACh := make(chan centralsim.Event)         // Canal para recibir LA solicitado a otro proceso
-	receiveLAReqCh := make(chan int)                   // Canal para recibir solicitud de LA
-	sendLookAheadCh := make(chan centralsim.LookAhead) // Canal para enviar LA a otro proceso
+	sendEventCh := make(chan centralsim.Event)               // Canal para enviar eventos
+	incomingEventCh := make(chan centralsim.Event)           // Canal para recibir eventos
+	requestLookAheadCh := make(chan bool)                    // Canal para enviar solicitud de LA
+	receiveLACh := make(chan centralsim.Event)               // Canal para recibir LA solicitado a otro proceso
+	receiveLAReqCh := make(chan centralsim.LookAheadRequest) // Canal para recibir solicitud de LA
+	sendLookAheadCh := make(chan centralsim.LookAhead)       // Canal para enviar LA a otro proceso
 
 	logger := centralsim.CreateLogger(strconv.Itoa(pid))
-	simEngine := centralsim.MakeSimulationEngine(lefs, logger, sendEventCh, incomingEventCh, requestLookAheadCh, receiveLACh, receiveLAReqCh, sendLookAheadCh)
+	input := transitions[pid].InputTrans
+	simEngine := centralsim.MakeSimulationEngine(lefs, logger, input, sendEventCh, incomingEventCh, requestLookAheadCh, receiveLACh, receiveLAReqCh, sendLookAheadCh)
 	comMod := CreateCommunicationModule(pid, network, transitions, logger, sendEventCh, incomingEventCh, requestLookAheadCh, receiveLACh, receiveLAReqCh, sendLookAheadCh)
 	lp := LogicProcess{
 		simEngine:        simEngine,

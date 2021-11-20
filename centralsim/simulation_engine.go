@@ -30,13 +30,14 @@ type SimulationEngine struct {
 	IlEventos             EventList             //Lista de eventos a procesar
 	ivTransResults        []ResultadoTransition // slice dinamico con los resultados
 	EventNumber           float64               // cantidad de eventos ejecutados
+	inputTr               int                   // Usado para saber cual es la entrada de la subred
 	Log                   *Logger
 	sendEventCh           chan Event
-	incomEventsCh         chan Event     // Recibe eventos de otros procesos
-	reqLookAheadCh        chan bool      // Canal para solicitar lookAhead
-	receiveLookAheadCh    chan Event     // Canal para recibir LookAhead de proceso precedente
-	receiveLookAheadReqCh chan int       // Recibe solicitud de LookAhead de proceso posterior
-	sendLookAheadCh       chan LookAhead // Envía LookAhead propio a proceso posterior
+	incomEventsCh         chan Event            // Recibe eventos de otros procesos
+	reqLookAheadCh        chan bool             // Canal para solicitar lookAhead
+	receiveLookAheadCh    chan Event            // Canal para recibir LookAhead de proceso precedente
+	receiveLookAheadReqCh chan LookAheadRequest // Recibe solicitud de LookAhead de proceso posterior
+	sendLookAheadCh       chan LookAhead        // Envía LookAhead propio a proceso posterior
 	mux                   sync.Mutex
 }
 
@@ -44,11 +45,12 @@ type SimulationEngine struct {
 func MakeSimulationEngine(
 	alLaLef Lefs,
 	logger *Logger,
+	inputTra int,
 	sendEv chan Event,
 	incomingEvent chan Event,
 	requestLookAhead chan bool,
 	receiveLACh chan Event,
-	receiveLAReqCh chan int,
+	receiveLAReqCh chan LookAheadRequest,
 	sendLookAheadCh chan LookAhead,
 ) *SimulationEngine {
 
@@ -66,6 +68,7 @@ func MakeSimulationEngine(
 	m.receiveLookAheadCh = receiveLACh
 	m.receiveLookAheadReqCh = receiveLAReqCh
 	m.sendLookAheadCh = sendLookAheadCh
+	m.inputTr = inputTra
 	m.mux = sync.Mutex{}
 
 	go m.manageIncommingEvents()
@@ -130,7 +133,7 @@ func (se *SimulationEngine) tratarEventos() {
 		trList := se.ilMislefs.IaRed  // obtener lista de transiciones de Lefs
 
 		if idTr < 0 { // Enviar evento a la transición correspondiente
-			se.sendEventCh <- leEvento
+			//se.sendEventCh <- leEvento // No se envía, para eso está el lookAhead
 		} else {
 			idTr -= se.ilMislefs.IaRed[0].IiIndLocal // Normalizar el índice
 			// Establecer nuevo valor de la funcion
@@ -191,7 +194,7 @@ func (se *SimulationEngine) simularUnpaso(CicloFinal TypeClock) {
 	se.Log.NoFmtLog.Println("-----------Final lista eventos---------")
 
 	// advance local clock
-	se.iiRelojlocal += 1
+	// se.iiRelojlocal += 1
 
 	// if events exist for current local clock, process them
 	if se.IlEventos.hayEventos(se.iiRelojlocal) {
@@ -205,6 +208,9 @@ func (se *SimulationEngine) simularUnpaso(CicloFinal TypeClock) {
 			// espera Look Ahead
 			ev := <-se.receiveLookAheadCh
 			se.Log.Mark.Println("Recibe LA", ev)
+			se.mux.Lock()
+			se.IlEventos.inserta(ev)
+			se.mux.Unlock()
 		} else { // Hay eventos en la lista
 			// TODO
 			se.iiRelojlocal = se.avanzarTiempo()
