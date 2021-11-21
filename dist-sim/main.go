@@ -31,5 +31,5 @@ func main() {
 	// create LP
 	lp := process.CreateLogicProcess(index, network, petriFile, transitionsMap)
 	time.Sleep(1 * time.Second) // Espera a que los otros procesos sean creados
-	lp.RunSimulation(5)
+	lp.RunSimulation(15)
 }

@@ -27,8 +27,7 @@ func CreateLogicProcess(pid int, network []models.ProcessInfo, netFileName strin
 	sendLookAheadCh := make(chan centralsim.LookAhead)       // Canal para enviar LA a otro proceso
 
 	logger := centralsim.CreateLogger(strconv.Itoa(pid))
-	input := transitions[pid].InputTrans
-	simEngine := centralsim.MakeSimulationEngine(lefs, logger, input, sendEventCh, incomingEventCh, requestLookAheadCh, receiveLACh, receiveLAReqCh, sendLookAheadCh)
+	simEngine := centralsim.MakeSimulationEngine(lefs, logger, sendEventCh, incomingEventCh, requestLookAheadCh, receiveLACh, receiveLAReqCh, sendLookAheadCh)
 	comMod := CreateCommunicationModule(pid, network, transitions, logger, sendEventCh, incomingEventCh, requestLookAheadCh, receiveLACh, receiveLAReqCh, sendLookAheadCh)
 	lp := LogicProcess{
 		simEngine:        simEngine,

@@ -70,17 +70,19 @@ func (comMod *CommunicationModule) receiver() {
 			panic(err)
 		}
 
-		comMod.logger.Mark.Println(
-			fmt.Sprintf("EVENTO ENTRANTE DESDE PL%v, TRANSICIÓN: %v CTE: %v, TIEMPO: %v", data.Sender, data.Event.IiTransicion, data.Event.IiCte, data.Event.IiTiempo))
-
 		switch data.MsgType {
 		case models.MsgEvent: // Evento generado en otro proceso
+			comMod.logger.Mark.Println(
+				fmt.Sprintf("EVENTO ENTRANTE DESDE PL%v, TRANSICIÓN: %v CTE: %v, TIEMPO: %v", data.Sender, data.Event.IiTransicion, data.Event.IiCte, data.Event.IiTiempo))
 			comMod.incomingEventCh <- data.Event
 		case models.MsgLookAheadRequest: // Otro proceso solicita Lookhead
+			comMod.logger.Mark.Println(fmt.Sprintf("PL%v SOLICITA LOOKAHEAD", data.Sender))
 			inputTransition := comMod.transitionsMap[data.Sender].InputTrans
 			la := centralsim.LookAheadRequest{Process: data.Sender, InputTransition: inputTransition}
 			comMod.receiveLookAheadReqCh <- la
 		case models.MsgLookAhead: // Recibe el LookAhead de otro proceso
+			comMod.logger.Mark.Println(
+				fmt.Sprintf("LOOKAHEAD ENVIADO POR PL%v, TRANSICIÓN: %v CTE: %v, TIEMPO: %v", data.Sender, data.Event.IiTransicion, data.Event.IiCte, data.Event.IiTiempo))
 			comMod.receiveLookAheadCh <- data.Event
 		}
 	}

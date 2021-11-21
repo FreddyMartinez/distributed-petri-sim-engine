@@ -31,25 +31,23 @@ func (se *SimulationEngine) CalculateLookAhead() {
 	for {
 		select {
 		case lar := <-se.receiveLookAheadReqCh:
-			se.Log.Mark.Println("LookAhead Solicitado por", lar.Process)
-
 			// Encuentra la transición de salida de la subred actual
 			outboundTransition, err := se.findOutbound()
 			if err != nil {
 				panic(err)
 			}
 
-			se.mux.Lock()
 			var currentTransition int
-			if !se.ilMislefs.haySensibilizadas() { // Este caso se presenta si no ha comenzado la simulación, o si está esperando un LookAhead
-				currentTransition = se.inputTr // Asume que está en la posición de entrada a la subred
-			} else {
-				enabledTransitions := se.ilMislefs.IsTransSensib
-				currentTransition = int(enabledTransitions[0])
+			if se.lastEnabled == -1 { // Este caso se presenta si no ha comenzado la simulación
+				se.Log.Mark.Println("Espera a que inicie la simulación")
+				se.lastEnabled = <-se.simulationInit
 			}
-			currentTransition -= int(se.ilMislefs.IaRed[0].IiIndLocal) // Normalizar el índice
+			se.mux.Lock() // Bloquea recursos para leer estado local
 
-			futureTime := se.iiRelojlocal + TypeClock(outboundTransition.TiempoHastaMarca.LiTiempos[currentTransition])
+			currentTransition = se.lastEnabled
+			se.Log.NoFmtLog.Println("Current", currentTransition)
+
+			futureTime := se.iiRelojlocal + TypeClock(outboundTransition.TiempoHastaMarca.LiTiempos[currentTransition]-1)
 
 			// Encuentra la constante que se envía al proceso que solicita el LookAhead
 			trCo, err := getFutureEvent(outboundTransition.TransConstPul, lar.InputTransition)
@@ -61,6 +59,7 @@ func (se *SimulationEngine) CalculateLookAhead() {
 			ev := Event{IiTiempo: futureTime, IiTransicion: IndLocalTrans(lar.InputTransition), IiCte: TypeConst(trCo[1])}
 			la := LookAhead{Process: lar.Process, ExpectedEvent: ev}
 			se.mux.Unlock()
+			se.Log.NoFmtLog.Println("Envía LookAhead", ev)
 			se.sendLookAheadCh <- la
 		}
 	}
@@ -84,4 +83,19 @@ func getFutureEvent(constantsList [][2]int, inputTranId int) ([2]int, error) {
 		}
 	}
 	return [2]int{}, errors.New("No se encontró la transición buscada")
+}
+
+func (se *SimulationEngine) getLookAhead() {
+	// solicita Look Ahead
+	se.reqLookAheadCh <- true
+	// espera Look Ahead
+	ev := <-se.receiveLookAheadCh
+	// Si el evento es de un tiempo igual o mayor se inserta, si no, se vuelve a pedir
+	if ev.getTiempo() >= se.iiRelojlocal {
+		se.mux.Lock()
+		se.IlEventos.inserta(ev)
+		se.mux.Unlock()
+	} else {
+		se.getLookAhead()
+	}
 }
