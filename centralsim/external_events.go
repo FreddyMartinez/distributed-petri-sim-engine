@@ -39,15 +39,15 @@ func (se *SimulationEngine) CalculateLookAhead() {
 
 			var currentTransition int
 			if se.lastEnabled == -1 { // Este caso se presenta si no ha comenzado la simulación
-				se.Log.Mark.Println("Espera a que inicie la simulación")
+				// Espera a que inicie la simulación para obtener un valor de tiempo fiable
 				se.lastEnabled = <-se.simulationInit
 			}
 			se.mux.Lock() // Bloquea recursos para leer estado local
 
 			currentTransition = se.lastEnabled
-			se.Log.NoFmtLog.Println("Current", currentTransition)
-
-			futureTime := se.iiRelojlocal + TypeClock(outboundTransition.TiempoHastaMarca.LiTiempos[currentTransition]-1)
+			// se.Log.Tansition.Println("Current", currentTransition)
+			// se.Log.Clock.Println("Current Time", se.iiRelojlocal)
+			futureTime := se.iiRelojlocal + TypeClock(outboundTransition.TiempoHastaMarca.LiTiempos[currentTransition])
 
 			// Encuentra la constante que se envía al proceso que solicita el LookAhead
 			trCo, err := getFutureEvent(outboundTransition.TransConstPul, lar.InputTransition)
@@ -59,7 +59,7 @@ func (se *SimulationEngine) CalculateLookAhead() {
 			ev := Event{IiTiempo: futureTime, IiTransicion: IndLocalTrans(lar.InputTransition), IiCte: TypeConst(trCo[1])}
 			la := LookAhead{Process: lar.Process, ExpectedEvent: ev}
 			se.mux.Unlock()
-			se.Log.NoFmtLog.Println("Envía LookAhead", ev)
+			se.Log.Mark.Println("Envía LookAhead", ev)
 			se.sendLookAheadCh <- la
 		}
 	}

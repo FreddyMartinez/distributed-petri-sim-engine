@@ -90,11 +90,6 @@ func (se *SimulationEngine) dispararTransicion(ilTr IndLocalTrans) {
 	timeDur := trList[ilTr].IiDuracionDisparo // firing time length
 	listIul := trList[ilTr].TransConstIul     // Iul list of pairs Trans, Ctes
 	listPul := trList[ilTr].TransConstPul     // Pul list of pairs Trans, Ctes
-	// Actualiza la última transición
-	if se.lastEnabled == -1 { // si apenas comienza la simulación, actualiza e informa a la otra rutina
-		se.simulationInit <- int(ilTr)
-	}
-	se.lastEnabled = int(ilTr)
 
 	// First apply Iul propagations (Inmediate : 0 propagation time)
 	for _, trCo := range listIul {
@@ -123,6 +118,7 @@ func (se *SimulationEngine) fireEnabledTransitions(aiLocalClock TypeClock) {
 	for se.ilMislefs.haySensibilizadas() { //while
 		liCodTrans := se.ilMislefs.getSensibilizada()
 		se.dispararTransicion(liCodTrans)
+		se.lastEnabled = int(liCodTrans)
 
 		// Anotar el Resultado que disparo la liCodTrans en tiempoaiLocalClock
 		se.ivTransResults = append(se.ivTransResults, ResultadoTransition{se.ilMislefs.IaRed[liCodTrans].IiIndLocal, aiLocalClock})
@@ -135,7 +131,6 @@ func (se *SimulationEngine) tratarEventos() {
 	aiTiempo := se.iiRelojlocal
 
 	se.Log.Event.Println("Tratar Eventos", se.IlEventos)
-	se.mux.Lock()
 	for se.IlEventos.hayEventos(aiTiempo) {
 		leEvento = se.IlEventos.popPrimerEvento() // extraer evento más reciente
 
@@ -154,7 +149,6 @@ func (se *SimulationEngine) tratarEventos() {
 
 		se.EventNumber++
 	}
-	se.mux.Unlock()
 }
 
 // avanzarTiempo : Modifica reloj local con minimo tiempo de entre
@@ -188,8 +182,15 @@ func (se *SimulationEngine) devolverResultados() {
 
 // SimularUnpaso de una RdP con duración disparo >= 1
 func (se *SimulationEngine) simularUnpaso() {
-	se.mux.Lock()
 	se.ilMislefs.actualizaSensibilizadas(se.iiRelojlocal)
+	// Si no hay transiciones sensibilizadas ni eventos por procesar, pide look ahead
+	if !se.ilMislefs.haySensibilizadas() && se.IlEventos.ListaEventosVacia() {
+		se.getLookAhead()
+	}
+	se.mux.Lock()
+	if se.lastEnabled == -1 {
+		se.simulationInit <- 0 // Para desbloquear la rutina de look ahead
+	}
 
 	se.Log.NoFmtLog.Println("-----------Stack de transiciones sensibilizadas---------")
 	se.ilMislefs.IsTransSensib.ImprimeTransStack(se.Log)
@@ -199,7 +200,6 @@ func (se *SimulationEngine) simularUnpaso() {
 	if se.ilMislefs.haySensibilizadas() {
 		se.fireEnabledTransitions(se.iiRelojlocal)
 	}
-	se.mux.Unlock()
 
 	se.Log.NoFmtLog.Println("-----------Lista eventos después de disparos---------")
 	se.IlEventos.Imprime(se.Log)
@@ -208,24 +208,13 @@ func (se *SimulationEngine) simularUnpaso() {
 	// advance local clock
 	// se.iiRelojlocal += 1
 
-	// if events exist for current local clock, process them
-	if se.IlEventos.hayEventos(se.iiRelojlocal) {
-		se.tratarEventos()
-	} else { // si no hay eventos para el tiempo de simulación actual
-		eventListLen := len(se.IlEventos)
-
-		if eventListLen == 0 {
-			se.getLookAhead()
-		}
-		// Cuando hay eventos o recibe el LookAhead
+	if !se.IlEventos.ListaEventosVacia() {
+		// Cuando hay eventos futuros
 		se.iiRelojlocal = se.avanzarTiempo()
 		se.Log.Clock.Println("Avanza el tiempo -> ", se.iiRelojlocal)
-		if se.lastEnabled == -1 {
-			se.simulationInit <- 0 // Para desbloquear la rutina de look ahead
-		}
 		se.tratarEventos()
-
 	}
+	se.mux.Unlock()
 }
 
 // SimularPeriodo de una RdP
@@ -242,7 +231,7 @@ func (se *SimulationEngine) SimularPeriodo(CicloInicial, CicloFinal TypeClock) {
 	for se.iiRelojlocal < CicloFinal {
 		///*		//DEPURACION
 		se.Log.NoFmtLog.Println("RELOJ LOCAL !!!  = ", se.iiRelojlocal)
-		se.ilMislefs.ImprimeLefs(se.Log)
+		// se.ilMislefs.ImprimeLefs(se.Log)
 		//*/
 		se.simularUnpaso()
 	}
