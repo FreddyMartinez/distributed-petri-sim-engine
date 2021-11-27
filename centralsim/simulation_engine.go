@@ -31,15 +31,17 @@ type SimulationEngine struct {
 	ivTransResults        []ResultadoTransition // slice dinamico con los resultados
 	EventNumber           float64               // cantidad de eventos ejecutados
 	Log                   *Logger
-	lastEnabled           int // Usado para saber cual es la última transición habilitada
+	lookAheads            map[int]TypeClock // usado para saber los lookAheads de los procesos precedentes
+	maxLookAhead          TypeClock         // se usa para dar lookAhead cuando no hay transiciones sensibilizadas
 	sendEventCh           chan Event
-	incomEventsCh         chan Event            // Recibe eventos de otros procesos
-	reqLookAheadCh        chan bool             // Canal para solicitar lookAhead
-	receiveLookAheadCh    chan Event            // Canal para recibir LookAhead de proceso precedente
-	receiveLookAheadReqCh chan LookAheadRequest // Recibe solicitud de LookAhead de proceso posterior
-	sendLookAheadCh       chan LookAhead        // Envía LookAhead propio a proceso posterior
+	incomEventsCh         chan Event     // Recibe eventos de otros procesos
+	reqLookAheadCh        chan int       // Canal para solicitar lookAhead al proceso indicado
+	receiveLookAheadCh    chan LookAhead // Canal para recibir LookAhead de proceso precedente
+	receiveLookAheadReqCh chan int       // Recibe solicitud de LookAhead de proceso posterior
+	sendLookAheadCh       chan LookAhead // Envía LookAhead propio a proceso posterior
+	isWaitingEvent        bool
+	waitForEvent          chan bool
 	mux                   sync.Mutex
-	simulationInit        chan int
 }
 
 // MakeSimulationEngine : inicializar SimulationEngine struct
@@ -48,10 +50,12 @@ func MakeSimulationEngine(
 	logger *Logger,
 	sendEv chan Event,
 	incomingEvent chan Event,
-	requestLookAhead chan bool,
-	receiveLACh chan Event,
-	receiveLAReqCh chan LookAheadRequest,
+	requestLookAhead chan int,
+	receiveLACh chan LookAhead,
+	receiveLAReqCh chan int,
 	sendLookAheadCh chan LookAhead,
+	lookAheads map[int]TypeClock,
+	maxLookAhead TypeClock,
 ) *SimulationEngine {
 
 	m := SimulationEngine{}
@@ -68,9 +72,11 @@ func MakeSimulationEngine(
 	m.receiveLookAheadCh = receiveLACh
 	m.receiveLookAheadReqCh = receiveLAReqCh
 	m.sendLookAheadCh = sendLookAheadCh
-	m.lastEnabled = -1
+	m.lookAheads = lookAheads
+	m.maxLookAhead = maxLookAhead
+	m.isWaitingEvent = false
+	m.waitForEvent = make(chan bool)
 	m.mux = sync.Mutex{}
-	m.simulationInit = make(chan int)
 
 	m.Log.NoFmtLog.Println("Motor de simulación creado")
 
@@ -99,12 +105,10 @@ func (se *SimulationEngine) dispararTransicion(ilTr IndLocalTrans) {
 
 	// Generamos eventos ocurridos por disparo de transicion ilTr
 	for _, trCo := range listPul {
-		if trCo[0] >= 0 { // Solo añadimos a la cola los eventos propios
-			// tiempo = tiempo de la transicion + coste disparo
-			se.IlEventos.inserta(Event{timeTrans + timeDur,
-				IndLocalTrans(trCo[0]),
-				TypeConst(trCo[1])})
-		}
+		// tiempo = tiempo de la transicion + coste disparo
+		se.IlEventos.inserta(Event{timeTrans + timeDur,
+			IndLocalTrans(trCo[0]),
+			TypeConst(trCo[1])})
 	}
 }
 
@@ -118,7 +122,6 @@ func (se *SimulationEngine) fireEnabledTransitions(aiLocalClock TypeClock) {
 	for se.ilMislefs.haySensibilizadas() { //while
 		liCodTrans := se.ilMislefs.getSensibilizada()
 		se.dispararTransicion(liCodTrans)
-		se.lastEnabled = int(liCodTrans)
 
 		// Anotar el Resultado que disparo la liCodTrans en tiempoaiLocalClock
 		se.ivTransResults = append(se.ivTransResults, ResultadoTransition{se.ilMislefs.IaRed[liCodTrans].IiIndLocal, aiLocalClock})
@@ -138,7 +141,7 @@ func (se *SimulationEngine) tratarEventos() {
 		trList := se.ilMislefs.IaRed  // obtener lista de transiciones de Lefs
 
 		if idTr < 0 { // Enviar evento a la transición correspondiente
-			//se.sendEventCh <- leEvento // No se envía, para eso está el lookAhead
+			se.sendEventCh <- leEvento
 		} else {
 			idTr -= se.ilMislefs.IaRed[0].IiIndLocal // Normalizar el índice
 			// Establecer nuevo valor de la funcion
@@ -183,14 +186,21 @@ func (se *SimulationEngine) devolverResultados() {
 // SimularUnpaso de una RdP con duración disparo >= 1
 func (se *SimulationEngine) simularUnpaso() {
 	se.ilMislefs.actualizaSensibilizadas(se.iiRelojlocal)
-	// Si no hay transiciones sensibilizadas ni eventos por procesar, pide look ahead
+	// Si no hay transiciones sensibilizadas ni eventos por procesar, espera evento
 	if !se.ilMislefs.haySensibilizadas() && se.IlEventos.ListaEventosVacia() {
-		se.getLookAhead()
+		// Espera evento
+		se.Log.NoFmtLog.Println("ESPERA EVENTO")
+		se.isWaitingEvent = true
+		<-se.waitForEvent
+	}
+	// si los eventos son de tiempo menor a los lookahead, los procesa, si no, pide lookahead
+	for i, l := range se.lookAheads {
+		se.Log.Mark.Println(fmt.Sprintf("LOOKAHEAD P%v: %v", i, l))
+		if l < se.iiRelojlocal {
+			se.getLookAhead(i)
+		}
 	}
 	se.mux.Lock()
-	if se.lastEnabled == -1 {
-		se.simulationInit <- 0 // Para desbloquear la rutina de look ahead
-	}
 
 	se.Log.NoFmtLog.Println("-----------Stack de transiciones sensibilizadas---------")
 	se.ilMislefs.IsTransSensib.ImprimeTransStack(se.Log)

@@ -10,4 +10,5 @@ type Message struct {
 	MsgType string
 	Sender  int
 	Event   centralsim.Event
+	Time    centralsim.TypeClock
 }

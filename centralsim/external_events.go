@@ -2,16 +2,12 @@ package centralsim
 
 import (
 	"errors"
+	"fmt"
 )
 
 type LookAhead struct {
-	Process       int
-	ExpectedEvent Event
-}
-
-type LookAheadRequest struct {
-	Process         int // id del proceso que solicita el LookAhead
-	InputTransition int // Transición de entrada del proceso que solicita el lookAhead
+	Process int
+	Time    TypeClock
 }
 
 // Rutina encargada de añadir eventos entrantes a la lista
@@ -21,6 +17,9 @@ func (se *SimulationEngine) manageIncommingEvents() {
 		case event := <-se.incomEventsCh:
 			se.mux.Lock()
 			se.IlEventos.inserta(event)
+			if se.isWaitingEvent {
+				se.waitForEvent <- true
+			}
 			se.mux.Unlock()
 		}
 	}
@@ -31,35 +30,17 @@ func (se *SimulationEngine) CalculateLookAhead() {
 	for {
 		select {
 		case lar := <-se.receiveLookAheadReqCh:
-			// Encuentra la transición de salida de la subred actual
-			outboundTransition, err := se.findOutbound()
-			if err != nil {
-				panic(err)
-			}
-
-			var currentTransition int
-			if se.lastEnabled == -1 { // Este caso se presenta si no ha comenzado la simulación
-				// Espera a que inicie la simulación para obtener un valor de tiempo fiable
-				se.lastEnabled = <-se.simulationInit
-			}
 			se.mux.Lock() // Bloquea recursos para leer estado local
 
-			currentTransition = se.lastEnabled
-			// se.Log.Tansition.Println("Current", currentTransition)
-			// se.Log.Clock.Println("Current Time", se.iiRelojlocal)
-			futureTime := se.iiRelojlocal + TypeClock(outboundTransition.TiempoHastaMarca.LiTiempos[currentTransition])
-
-			// Encuentra la constante que se envía al proceso que solicita el LookAhead
-			trCo, err := getFutureEvent(outboundTransition.TransConstPul, lar.InputTransition)
-
-			if err != nil {
-				panic(err)
+			la := LookAhead{Process: lar}
+			// si no hay transiciones sensibilizadas, da el lookAhead máximo, el cual es el tiempo mínimo que le tome a un token atravesar la red
+			if se.ilMislefs.IsTransSensib.isEmpty() {
+				la.Time = se.iiRelojlocal + se.maxLookAhead
+			} else {
+				la.Time = se.iiRelojlocal + 1 // asume que el tiempo mínimo en que puede generar un evento externo es 1
 			}
-
-			ev := Event{IiTiempo: futureTime, IiTransicion: IndLocalTrans(lar.InputTransition), IiCte: TypeConst(trCo[1])}
-			la := LookAhead{Process: lar.Process, ExpectedEvent: ev}
 			se.mux.Unlock()
-			se.Log.Mark.Println("Envía LookAhead", ev)
+			se.Log.Mark.Println(fmt.Sprintf("Envía LookAhead a P%v, con tiempo %v", la.Process, la.Time))
 			se.sendLookAheadCh <- la
 		}
 	}
@@ -85,17 +66,17 @@ func getFutureEvent(constantsList [][2]int, inputTranId int) ([2]int, error) {
 	return [2]int{}, errors.New("No se encontró la transición buscada")
 }
 
-func (se *SimulationEngine) getLookAhead() {
+func (se *SimulationEngine) getLookAhead(processId int) {
 	// solicita Look Ahead
-	se.reqLookAheadCh <- true
+	se.reqLookAheadCh <- processId
 	// espera Look Ahead
 	ev := <-se.receiveLookAheadCh
 	// Si el evento es de un tiempo igual o mayor se inserta, si no, se vuelve a pedir
-	if ev.getTiempo() >= se.iiRelojlocal {
+	if ev.Time == -1 || ev.Time >= se.iiRelojlocal {
 		se.mux.Lock()
-		se.IlEventos.inserta(ev)
+		se.lookAheads[ev.Process] = ev.Time
 		se.mux.Unlock()
 	} else {
-		se.getLookAhead()
+		se.getLookAhead(processId)
 	}
 }
