@@ -14,12 +14,12 @@ type CommunicationModule struct {
 	transitionsMap        []models.TransitionMap // Información de las transiciones en cada nodo
 	listener              net.Listener
 	logger                *centralsim.Logger
-	outgoingEventCh       chan centralsim.Event     // Canal para envío de Eventos
-	incomingEventCh       chan centralsim.Event     // Canal para recibir eventos generados en otros procesos
-	reqLookAheadCh        chan int                  // Canal para solicitar LookAhead a proceso precedente
-	receiveLookAheadCh    chan centralsim.LookAhead // Canal para recibir LookAhead de proceso precedente
-	receiveLookAheadReqCh chan int                  // Recibe solicitud de LookAhead de proceso posterior
-	sendLookAheadCh       chan centralsim.LookAhead // Envía LookAhead propio a proceso posterior
+	outgoingEventCh       chan centralsim.Event          // Canal para envío de Eventos
+	incomingEventCh       chan centralsim.IncommingEvent // Canal para recibir eventos generados en otros procesos
+	reqLookAheadCh        chan int                       // Canal para solicitar LookAhead a proceso precedente
+	receiveLookAheadCh    chan centralsim.LookAhead      // Canal para recibir LookAhead de proceso precedente
+	receiveLookAheadReqCh chan int                       // Recibe solicitud de LookAhead de proceso posterior
+	sendLookAheadCh       chan centralsim.LookAhead      // Envía LookAhead propio a proceso posterior
 }
 
 func CreateCommunicationModule(
@@ -28,7 +28,7 @@ func CreateCommunicationModule(
 	transitions []models.TransitionMap,
 	logger *centralsim.Logger,
 	sendEventCh chan centralsim.Event,
-	incomingEventCh chan centralsim.Event,
+	incomingEventCh chan centralsim.IncommingEvent,
 	reqLookAheadCh chan int,
 	receiveLACh chan centralsim.LookAhead,
 	receiveLAReqCh chan int,
@@ -72,9 +72,10 @@ func (comMod *CommunicationModule) receiver() {
 
 		switch data.MsgType {
 		case models.MsgEvent: // Evento generado en otro proceso
-			comMod.logger.Mark.Println(
+			comMod.logger.Event.Println(
 				fmt.Sprintf("EVENTO ENTRANTE DESDE PL%v, TRANSICIÓN: %v CTE: %v, TIEMPO: %v", data.Sender, data.Event.IiTransicion, data.Event.IiCte, data.Event.IiTiempo))
-			comMod.incomingEventCh <- data.Event
+			incommingEv := centralsim.IncommingEvent{Event: data.Event, ProcessId: data.Sender}
+			comMod.incomingEventCh <- incommingEv
 		case models.MsgLookAheadRequest: // Otro proceso solicita Lookhead
 			comMod.logger.Mark.Println(fmt.Sprintf("PL%v SOLICITA LOOKAHEAD", data.Sender))
 			comMod.receiveLookAheadReqCh <- data.Sender
@@ -92,7 +93,7 @@ func (comMod *CommunicationModule) sender() {
 		select {
 		case event := <-comMod.outgoingEventCh: // Recibe Evento que se debe propagar
 			processId := comMod.findProcessId(&event)
-			msg := models.Message{MsgType: models.MsgEvent, Event: event}
+			msg := models.Message{MsgType: models.MsgEvent, Event: event, Sender: comMod.pId}
 
 			if processId == -1 {
 				panic("process not found")
@@ -103,14 +104,13 @@ func (comMod *CommunicationModule) sender() {
 				fmt.Sprintf("ENVIAR EVENTO A PL%v, TRANSICIÓN: %v CTE: %v, TIEMPO: %v", processId, event.IiTransicion, event.IiCte, event.IiTiempo))
 			helpers.Send(msg, proc.Ip+":"+proc.Port)
 
-		case <-comMod.reqLookAheadCh: // El simulador solicita un LookAhead a otro(s) proceso(s)
-			comMod.logger.Mark.Println("SOLICITA LOOKAHEAD A ", comMod.transitionsMap[comMod.pId].Ancestors)
+		case id := <-comMod.reqLookAheadCh: // El simulador solicita un LookAhead a otro proceso
+			comMod.logger.Mark.Println("SOLICITA LOOKAHEAD A ", id)
 			msg := models.Message{MsgType: models.MsgLookAheadRequest, Sender: comMod.pId}
 
-			for _, ancestorId := range comMod.transitionsMap[comMod.pId].Ancestors { // Enviar solicitud a todos los procesos precedentes
-				proc := comMod.networkInfo[ancestorId]
-				helpers.Send(msg, proc.Ip+":"+proc.Port)
-			}
+			// Enviar solicitud al proceso precedente
+			proc := comMod.networkInfo[id]
+			helpers.Send(msg, proc.Ip+":"+proc.Port)
 
 		case la := <-comMod.sendLookAheadCh: // El proceso envía LookAhead calculado al proceso que lo solicita
 			msg := models.Message{MsgType: models.MsgLookAhead, Time: la.Time, Sender: comMod.pId}

@@ -19,19 +19,17 @@ func CreateLogicProcess(pid int, network []models.ProcessInfo, netFileName strin
 		println("Couldn't load the Petri Net file !")
 	}
 
-	sendEventCh := make(chan centralsim.Event)         // Canal para enviar eventos
-	incomingEventCh := make(chan centralsim.Event)     // Canal para recibir eventos
-	requestLookAheadCh := make(chan int)               // Canal para enviar solicitud de LA
-	receiveLACh := make(chan centralsim.LookAhead)     // Canal para recibir LA solicitado a otro proceso
-	receiveLAReqCh := make(chan int)                   // Canal para recibir solicitud de LA
-	sendLookAheadCh := make(chan centralsim.LookAhead) // Canal para enviar LA a otro proceso
+	sendEventCh := make(chan centralsim.Event)              // Canal para enviar eventos
+	incomingEventCh := make(chan centralsim.IncommingEvent) // Canal para recibir eventos
+	requestLookAheadCh := make(chan int)                    // Canal para enviar solicitud de LA
+	receiveLACh := make(chan centralsim.LookAhead)          // Canal para recibir LA solicitado a otro proceso
+	receiveLAReqCh := make(chan int)                        // Canal para recibir solicitud de LA
+	sendLookAheadCh := make(chan centralsim.LookAhead)      // Canal para enviar LA a otro proceso
 	maxLookAhead := centralsim.TypeClock(transitions[pid].MinTime)
 
 	partnersLookAheads := make(map[int]centralsim.TypeClock)
-	for i, t := range transitions {
-		if i != pid {
-			partnersLookAheads[i] = centralsim.TypeClock(t.MinTime)
-		}
+	for _, a := range transitions[pid].Ancestors { // crea el mapa de LookAheads solo con los predecesores
+		partnersLookAheads[a] = centralsim.TypeClock(0) // LookAheads se inicializan en cero
 	}
 
 	logger := centralsim.CreateLogger(strconv.Itoa(pid))

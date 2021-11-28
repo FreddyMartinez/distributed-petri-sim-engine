@@ -34,11 +34,11 @@ type SimulationEngine struct {
 	lookAheads            map[int]TypeClock // usado para saber los lookAheads de los procesos precedentes
 	maxLookAhead          TypeClock         // se usa para dar lookAhead cuando no hay transiciones sensibilizadas
 	sendEventCh           chan Event
-	incomEventsCh         chan Event     // Recibe eventos de otros procesos
-	reqLookAheadCh        chan int       // Canal para solicitar lookAhead al proceso indicado
-	receiveLookAheadCh    chan LookAhead // Canal para recibir LookAhead de proceso precedente
-	receiveLookAheadReqCh chan int       // Recibe solicitud de LookAhead de proceso posterior
-	sendLookAheadCh       chan LookAhead // Envía LookAhead propio a proceso posterior
+	incomEventsCh         chan IncommingEvent // Recibe eventos de otros procesos
+	reqLookAheadCh        chan int            // Canal para solicitar lookAhead al proceso indicado
+	receiveLookAheadCh    chan LookAhead      // Canal para recibir LookAhead de proceso precedente
+	receiveLookAheadReqCh chan int            // Recibe solicitud de LookAhead de proceso posterior
+	sendLookAheadCh       chan LookAhead      // Envía LookAhead propio a proceso posterior
 	isWaitingEvent        bool
 	waitForEvent          chan bool
 	mux                   sync.Mutex
@@ -49,7 +49,7 @@ func MakeSimulationEngine(
 	alLaLef Lefs,
 	logger *Logger,
 	sendEv chan Event,
-	incomingEvent chan Event,
+	incomingEvent chan IncommingEvent,
 	requestLookAhead chan int,
 	receiveLACh chan LookAhead,
 	receiveLAReqCh chan int,
@@ -158,7 +158,13 @@ func (se *SimulationEngine) tratarEventos() {
 //	   recibidos del exterior o del primer evento en lista de eventos
 func (se *SimulationEngine) avanzarTiempo() TypeClock {
 	nextTime := se.IlEventos.tiempoPrimerEvento()
-	fmt.Println("NEXT CLOCK...... : ", nextTime)
+	// Compara el menor tiempo del siguiente evento con el menor LookAhead
+	for _, l := range se.lookAheads {
+		if l < nextTime {
+			nextTime = l
+		}
+	}
+	se.Log.Clock.Println("NEXT CLOCK...... : ", nextTime)
 	return nextTime
 }
 
@@ -195,8 +201,8 @@ func (se *SimulationEngine) simularUnpaso() {
 	}
 	// si los eventos son de tiempo menor a los lookahead, los procesa, si no, pide lookahead
 	for i, l := range se.lookAheads {
-		se.Log.Mark.Println(fmt.Sprintf("LOOKAHEAD P%v: %v", i, l))
-		if l < se.iiRelojlocal {
+		se.Log.Mark.Println(fmt.Sprintf("LOOKAHEAD P%v ACTUAL: %v", i, l))
+		if l < se.iiRelojlocal || l < se.IlEventos.tiempoPrimerEvento() {
 			se.getLookAhead(i)
 		}
 	}
@@ -207,23 +213,18 @@ func (se *SimulationEngine) simularUnpaso() {
 	se.Log.NoFmtLog.Println("-----------Final Stack de transiciones---------")
 
 	// Fire enabled transitions and produce events
-	if se.ilMislefs.haySensibilizadas() {
-		se.fireEnabledTransitions(se.iiRelojlocal)
-	}
+	se.fireEnabledTransitions(se.iiRelojlocal)
 
 	se.Log.NoFmtLog.Println("-----------Lista eventos después de disparos---------")
 	se.IlEventos.Imprime(se.Log)
 	se.Log.NoFmtLog.Println("-----------Final lista eventos---------")
 
-	// advance local clock
-	// se.iiRelojlocal += 1
-
 	if !se.IlEventos.ListaEventosVacia() {
 		// Cuando hay eventos futuros
 		se.iiRelojlocal = se.avanzarTiempo()
 		se.Log.Clock.Println("Avanza el tiempo -> ", se.iiRelojlocal)
-		se.tratarEventos()
 	}
+	se.tratarEventos()
 	se.mux.Unlock()
 }
 
