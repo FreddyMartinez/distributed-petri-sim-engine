@@ -2,17 +2,17 @@
 package helpers
 
 import (
-	"bytes"
-	"encoding/gob"
+	"centralsim"
 	"fmt"
 	"net"
+
+	"github.com/DistributedClocks/GoVector/govec"
 )
 
 // Send any data to desired ip
-func Send(data interface{}, ip string) error {
+func Send(data interface{}, ip string, log *centralsim.Logger) error {
 	var conn net.Conn
 	var err error
-	var encoder *gob.Encoder
 
 	conn, err = net.Dial("tcp", ip)
 
@@ -20,22 +20,18 @@ func Send(data interface{}, ip string) error {
 		panic("Client connection error")
 	}
 
-	binBuffer := new(bytes.Buffer)
+	binBuffer := log.GoVec.PrepareSend("Send", data, govec.GetDefaultLogOptions())
 
-	encoder = gob.NewEncoder(binBuffer)
-	err = encoder.Encode(data)
-
-	conn.Write(binBuffer.Bytes())
+	conn.Write(binBuffer)
 	defer conn.Close()
 	return err
 }
 
 // listen for incoming messages
-func Receive(data interface{}, listener *net.Listener) error {
+func Receive(data interface{}, listener *net.Listener, log *centralsim.Logger) error {
 	var conn net.Conn
 	var err error
 	tmp := make([]byte, 512)
-	tmpbuff := bytes.NewBuffer(tmp)
 
 	conn, err = (*listener).Accept()
 	if err != nil {
@@ -47,9 +43,8 @@ func Receive(data interface{}, listener *net.Listener) error {
 		panic(fmt.Sprintf("Server accept connection error: %s", err))
 	}
 
-	decoder := gob.NewDecoder(tmpbuff)
+	log.GoVec.UnpackReceive("Receive", tmp, data, govec.GetDefaultLogOptions())
 
-	err = decoder.Decode(data)
 	defer conn.Close()
 
 	return err

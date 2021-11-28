@@ -122,6 +122,7 @@ func (se *SimulationEngine) fireEnabledTransitions(aiLocalClock TypeClock) {
 	for se.ilMislefs.haySensibilizadas() { //while
 		liCodTrans := se.ilMislefs.getSensibilizada()
 		se.dispararTransicion(liCodTrans)
+		se.Log.GoVectLog(fmt.Sprintf("Dispara transición %v", liCodTrans))
 
 		// Anotar el Resultado que disparo la liCodTrans en tiempoaiLocalClock
 		se.ivTransResults = append(se.ivTransResults, ResultadoTransition{se.ilMislefs.IaRed[liCodTrans].IiIndLocal, aiLocalClock})
@@ -148,6 +149,7 @@ func (se *SimulationEngine) tratarEventos() {
 			trList[idTr].updateFuncValue(leEvento.IiCte)
 			// Establecer nuevo valor del tiempo
 			trList[idTr].actualizaTiempo(leEvento.IiTiempo)
+			se.Log.GoVectLog(fmt.Sprintf("Evento local %v", se.EventNumber))
 		}
 
 		se.EventNumber++

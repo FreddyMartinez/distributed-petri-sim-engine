@@ -65,7 +65,7 @@ func CreateCommunicationModule(
 func (comMod *CommunicationModule) receiver() {
 	for {
 		data := new(models.Message)
-		err := helpers.Receive(data, &comMod.listener)
+		err := helpers.Receive(data, &comMod.listener, comMod.logger)
 		if err != nil {
 			panic(err)
 		}
@@ -102,7 +102,7 @@ func (comMod *CommunicationModule) sender() {
 			proc := comMod.networkInfo[processId]
 			comMod.logger.Event.Println(
 				fmt.Sprintf("ENVIAR EVENTO A PL%v, TRANSICIÓN: %v CTE: %v, TIEMPO: %v", processId, event.IiTransicion, event.IiCte, event.IiTiempo))
-			helpers.Send(msg, proc.Ip+":"+proc.Port)
+			helpers.Send(msg, proc.Ip+":"+proc.Port, comMod.logger)
 
 		case id := <-comMod.reqLookAheadCh: // El simulador solicita un LookAhead a otro proceso
 			comMod.logger.Mark.Println("SOLICITA LOOKAHEAD A ", id)
@@ -110,12 +110,12 @@ func (comMod *CommunicationModule) sender() {
 
 			// Enviar solicitud al proceso precedente
 			proc := comMod.networkInfo[id]
-			helpers.Send(msg, proc.Ip+":"+proc.Port)
+			helpers.Send(msg, proc.Ip+":"+proc.Port, comMod.logger)
 
 		case la := <-comMod.sendLookAheadCh: // El proceso envía LookAhead calculado al proceso que lo solicita
 			msg := models.Message{MsgType: models.MsgLookAhead, Time: la.Time, Sender: comMod.pId}
 			proc := comMod.networkInfo[la.Process]
-			helpers.Send(msg, proc.Ip+":"+proc.Port)
+			helpers.Send(msg, proc.Ip+":"+proc.Port, comMod.logger)
 		}
 	}
 }

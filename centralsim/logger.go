@@ -33,7 +33,7 @@ func CreateLogger(processId string) *Logger {
 
 	defaultConfig := govec.GetDefaultConfig()
 	defaultConfig.UseTimestamps = true
-	goVector := govec.InitGoVector(processId, "/logs/govector/"+processId, defaultConfig)
+	goVector := govec.InitGoVector(processId, "./logs/govector/"+processId, defaultConfig)
 
 	return &Logger{Event: event, NoFmtLog: logger, Tansition: transition, Mark: mark, GoVec: goVector, Clock: clock}
 }
