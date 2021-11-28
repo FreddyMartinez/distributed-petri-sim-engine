@@ -25,11 +25,15 @@ func main() {
 		panic("Invalid argument when creating process")
 	}
 
+	numberofCycles := 15 // leer de args?
+	killChan := make(chan bool)
+
 	network := helpers.ReadNetConfig(networkFile)
 	transitionsMap := helpers.ReadNetTransitions(transitionsFile)
 
 	// create LP
-	lp := process.CreateLogicProcess(index, network, petriFile, transitionsMap)
+	lp := process.CreateLogicProcess(index, network, petriFile, transitionsMap, killChan)
 	time.Sleep(1 * time.Second) // Espera a que los otros procesos sean creados
-	lp.RunSimulation(15)
+	go lp.RunSimulation(numberofCycles)
+	<-killChan // Espera hasta terminar la simulación
 }

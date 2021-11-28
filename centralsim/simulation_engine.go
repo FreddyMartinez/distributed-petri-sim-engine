@@ -204,7 +204,7 @@ func (se *SimulationEngine) simularUnpaso() {
 	// si los eventos son de tiempo menor a los lookahead, los procesa, si no, pide lookahead
 	for i, l := range se.lookAheads {
 		se.Log.Mark.Println(fmt.Sprintf("LOOKAHEAD P%v ACTUAL: %v", i, l))
-		if l < se.iiRelojlocal || l < se.IlEventos.tiempoPrimerEvento() {
+		if l < se.IlEventos.tiempoPrimerEvento() {
 			se.getLookAhead(i)
 		}
 	}
@@ -225,6 +225,7 @@ func (se *SimulationEngine) simularUnpaso() {
 		// Cuando hay eventos futuros
 		se.iiRelojlocal = se.avanzarTiempo()
 		se.Log.Clock.Println("Avanza el tiempo -> ", se.iiRelojlocal)
+		se.Log.GoVectLog(fmt.Sprintf("Avanza el tiempo -> %v", se.iiRelojlocal))
 	}
 	se.tratarEventos()
 	se.mux.Unlock()

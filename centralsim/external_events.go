@@ -2,7 +2,6 @@ package centralsim
 
 import (
 	"errors"
-	"fmt"
 )
 
 type LookAhead struct {
@@ -60,7 +59,7 @@ func (se *SimulationEngine) CalculateLookAhead() {
 				la.Time = se.iiRelojlocal + 1 // asume que el tiempo mínimo en que puede generar un evento externo es 1
 			}
 			se.mux.Unlock()
-			se.Log.Mark.Println(fmt.Sprintf("Envía LookAhead a P%v, con tiempo %v", la.Process, la.Time))
+
 			se.sendLookAheadCh <- la
 		}
 	}
@@ -91,8 +90,8 @@ func (se *SimulationEngine) getLookAhead(processId int) {
 	se.reqLookAheadCh <- processId
 	// espera Look Ahead
 	ev := <-se.receiveLookAheadCh
-	// Si el evento es de un tiempo igual o mayor se inserta, si no, se vuelve a pedir
-	if ev.Time >= se.iiRelojlocal {
+	// Si el evento es de un tiempo mayor se inserta, si no, se vuelve a pedir
+	if ev.Time > se.iiRelojlocal {
 		se.mux.Lock()
 		se.lookAheads[ev.Process] = ev.Time
 		se.mux.Unlock()

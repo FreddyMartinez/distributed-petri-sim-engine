@@ -13,7 +13,7 @@ type LogicProcess struct {
 }
 
 // Crea el contenedor del simulador y el módulo de comunicación
-func CreateLogicProcess(pid int, network []models.ProcessInfo, netFileName string, transitions []models.TransitionMap) *LogicProcess {
+func CreateLogicProcess(pid int, network []models.ProcessInfo, netFileName string, transitions []models.TransitionMap, killChan chan bool) *LogicProcess {
 	lefs, err := centralsim.Load(netFileName)
 	if err != nil {
 		println("Couldn't load the Petri Net file !")
@@ -44,7 +44,18 @@ func CreateLogicProcess(pid int, network []models.ProcessInfo, netFileName strin
 		sendLookAheadCh,
 		partnersLookAheads,
 		maxLookAhead)
-	comMod := CreateCommunicationModule(pid, network, transitions, logger, sendEventCh, incomingEventCh, requestLookAheadCh, receiveLACh, receiveLAReqCh, sendLookAheadCh)
+	comMod := CreateCommunicationModule(
+		pid,
+		network,
+		transitions,
+		logger,
+		sendEventCh,
+		incomingEventCh,
+		requestLookAheadCh,
+		receiveLACh,
+		receiveLAReqCh,
+		sendLookAheadCh,
+		killChan)
 	lp := LogicProcess{
 		simEngine:        simEngine,
 		communicationMod: comMod,
@@ -55,4 +66,5 @@ func CreateLogicProcess(pid int, network []models.ProcessInfo, netFileName strin
 // Here we run the local simulation
 func (LP *LogicProcess) RunSimulation(numberOfCycles int) {
 	LP.simEngine.SimularPeriodo(0, centralsim.TypeClock(numberOfCycles))
+	LP.communicationMod.killProcesses() // al terminar avisa a los demás procesos
 }
