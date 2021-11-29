@@ -105,6 +105,15 @@ func (lt TransitionList) length() IndLocalTrans {
 	return IndLocalTrans(len(lt))
 }
 
+func (lt TransitionList) findIndex(id IndLocalTrans) IndLocalTrans {
+	for i, t := range lt {
+		if t.IiIndLocal == id {
+			return IndLocalTrans(i)
+		}
+	}
+	return -1
+}
+
 //----------------------------------------------------------------------
 
 // TransitionStack is a Stack of transition indices

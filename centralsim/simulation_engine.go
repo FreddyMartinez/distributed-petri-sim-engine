@@ -99,7 +99,7 @@ func (se *SimulationEngine) dispararTransicion(ilTr IndLocalTrans) {
 
 	// First apply Iul propagations (Inmediate : 0 propagation time)
 	for _, trCo := range listIul {
-		localIndex := IndLocalTrans(trCo[0]) - se.ilMislefs.IaRed[0].IiIndLocal // Se normaliza con el menor id de transición
+		localIndex := se.ilMislefs.IaRed.findIndex(IndLocalTrans(trCo[0])) // Encontrar id de transición
 		trList[localIndex].updateFuncValue(TypeConst(trCo[1]))
 	}
 
@@ -144,7 +144,7 @@ func (se *SimulationEngine) tratarEventos() {
 		if idTr < 0 { // Enviar evento a la transición correspondiente
 			se.sendEventCh <- leEvento
 		} else {
-			idTr -= se.ilMislefs.IaRed[0].IiIndLocal // Normalizar el índice
+			idTr := trList.findIndex(idTr) // Encontrar el índice
 			// Establecer nuevo valor de la funcion
 			trList[idTr].updateFuncValue(leEvento.IiCte)
 			// Establecer nuevo valor del tiempo

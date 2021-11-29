@@ -23,7 +23,7 @@ const networkFile = "network.json"
 // Used to launch all processes programmatically
 func TestMain(m *testing.M) {
 	// crear los 3 procesos
-	numProcesses, file := test4subnet()
+	numProcesses, file := specialTest()
 
 	processes := helpers.ReadNetConfig(networkFile)
 	for i, proc := range processes {
@@ -52,4 +52,8 @@ func test3subnet() (int, string) {
 
 func test4subnet() (int, string) {
 	return 4, "4sub3node"
+}
+
+func specialTest() (int, string) {
+	return 3, "special3"
 }
