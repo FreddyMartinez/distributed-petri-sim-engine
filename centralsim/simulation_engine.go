@@ -35,9 +35,9 @@ type SimulationEngine struct {
 	maxLookAhead          TypeClock         // se usa para dar lookAhead cuando no hay transiciones sensibilizadas
 	sendEventCh           chan Event
 	incomEventsCh         chan IncommingEvent // Recibe eventos de otros procesos
-	reqLookAheadCh        chan int            // Canal para solicitar lookAhead al proceso indicado
+	reqLookAheadCh        chan LookAhead      // Canal para solicitar lookAhead al proceso indicado
 	receiveLookAheadCh    chan LookAhead      // Canal para recibir LookAhead de proceso precedente
-	receiveLookAheadReqCh chan int            // Recibe solicitud de LookAhead de proceso posterior
+	receiveLookAheadReqCh chan LookAhead      // Recibe solicitud de LookAhead de proceso posterior
 	sendLookAheadCh       chan LookAhead      // Envía LookAhead propio a proceso posterior
 	isWaitingEvent        bool
 	waitForEvent          chan bool
@@ -50,9 +50,9 @@ func MakeSimulationEngine(
 	logger *Logger,
 	sendEv chan Event,
 	incomingEvent chan IncommingEvent,
-	requestLookAhead chan int,
+	requestLookAhead chan LookAhead,
 	receiveLACh chan LookAhead,
-	receiveLAReqCh chan int,
+	receiveLAReqCh chan LookAhead,
 	sendLookAheadCh chan LookAhead,
 	lookAheads map[int]TypeClock,
 	maxLookAhead TypeClock,
