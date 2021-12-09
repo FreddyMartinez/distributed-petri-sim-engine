@@ -40,7 +40,9 @@ type SimulationEngine struct {
 	receiveLookAheadReqCh chan LookAhead      // Recibe solicitud de LookAhead de proceso posterior
 	sendLookAheadCh       chan LookAhead      // Envía LookAhead propio a proceso posterior
 	isWaitingEvent        bool
+	isWaitingLookAhead    bool
 	waitForEvent          chan bool
+	sendLookAheadNext     chan TypeClock
 	mux                   sync.Mutex
 }
 
@@ -56,6 +58,7 @@ func MakeSimulationEngine(
 	sendLookAheadCh chan LookAhead,
 	lookAheads map[int]TypeClock,
 	maxLookAhead TypeClock,
+	sendLookAheadNext chan TypeClock,
 ) *SimulationEngine {
 
 	m := SimulationEngine{}
@@ -75,8 +78,10 @@ func MakeSimulationEngine(
 	m.lookAheads = lookAheads
 	m.maxLookAhead = maxLookAhead
 	m.isWaitingEvent = false
+	m.isWaitingLookAhead = false
 	m.waitForEvent = make(chan bool)
 	m.mux = sync.Mutex{}
+	m.sendLookAheadNext = sendLookAheadNext
 
 	m.Log.NoFmtLog.Println("Motor de simulación creado")
 
@@ -167,6 +172,9 @@ func (se *SimulationEngine) avanzarTiempo() TypeClock {
 		}
 	}
 	se.Log.Clock.Println("NEXT CLOCK...... : ", nextTime)
+	if nextTime > se.iiRelojlocal { // envía LookAhead solo si avanza el reloj
+		se.sendLookAheadNext <- nextTime
+	}
 	return nextTime
 }
 

@@ -31,6 +31,17 @@ func (se *SimulationEngine) manageIncommingEvents() {
 				se.waitForEvent <- true
 			}
 			se.mux.Unlock()
+
+		case ev := <-se.receiveLookAheadCh: // Maneja los LookAhead que entran
+			se.mux.Lock()
+			if ev.Time > se.lookAheads[ev.Process] { // puede ser menor si llega después de un evento
+				se.lookAheads[ev.Process] = ev.Time
+			}
+			if se.isWaitingLookAhead {
+				se.receiveLookAheadCh <- ev
+			}
+			se.updateTimeWithLA()
+			se.mux.Unlock()
 		}
 	}
 }
@@ -59,29 +70,30 @@ func (se *SimulationEngine) CalculateLookAhead() {
 			}
 			se.mux.Unlock()
 
-			se.sendLookAheadCh <- la
+			se.sendLookAheadNext <- la.Time
 		}
 	}
 }
 
 // Devuelve la transición de salida de la subred
-func (se *SimulationEngine) findOutbound() (Transition, error) {
+func (se *SimulationEngine) findOutbound() []Transition {
+	outboundList := make([]Transition, 0)
 	for _, t := range se.ilMislefs.IaRed {
 		if t.EsSalida {
-			return t, nil
+			outboundList = append(outboundList, t)
 		}
 	}
-	return Transition{}, errors.New("Transición de salida no encontrada")
+	return outboundList
 }
 
 func (se *SimulationEngine) updateTimeWithLA() {
 	minLookAhead := TypeClock(100) // se inicializa en 100 para reducirlo
-	for i, l := range se.lookAheads {
+	for _, l := range se.lookAheads {
 		if l < minLookAhead {
-			if l <= se.iiRelojlocal { // Si LookAhead no permite avanzar, se pide nuevo para ampliar más el tiempo
-				se.Log.Clock.Println("LookAhead actual", l)
-				go se.getLookAhead(i) // cuando se hace esto, los lookAhead se acumulan, generando problemas de sincronización
-			}
+			// if l <= se.iiRelojlocal { // Si LookAhead no permite avanzar, se pide nuevo para ampliar más el tiempo
+			// 	se.Log.Clock.Println("LookAhead actual", l)
+			// 	go se.getLookAhead(i) // cuando se hace esto, los lookAhead se acumulan, generando problemas de sincronización
+			// }
 			minLookAhead = l
 		}
 	}
@@ -105,8 +117,10 @@ func (se *SimulationEngine) getLookAhead(processId int) {
 	// solicita Look Ahead
 	la := LookAhead{Process: processId, Time: se.iiRelojlocal + 1}
 	se.reqLookAheadCh <- la
+	se.isWaitingLookAhead = true
 	// espera Look Ahead
 	ev := <-se.receiveLookAheadCh
+	se.isWaitingLookAhead = false
 	// Si el evento es de un tiempo mayor se inserta, si no, se vuelve a pedir
 	se.mux.Lock()
 	if ev.Time > se.lookAheads[ev.Process] { // puede ser menor si llega después de un evento

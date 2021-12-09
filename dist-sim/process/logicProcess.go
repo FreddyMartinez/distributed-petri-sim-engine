@@ -26,6 +26,7 @@ func CreateLogicProcess(pid int, network []models.ProcessInfo, netFileName strin
 	receiveLAReqCh := make(chan centralsim.LookAhead)       // Canal para recibir solicitud de LA
 	sendLookAheadCh := make(chan centralsim.LookAhead)      // Canal para enviar LA a otro proceso
 	maxLookAhead := centralsim.TypeClock(transitions[pid].MinTime)
+	sendLookAheadNext := make(chan centralsim.TypeClock)
 
 	partnersLookAheads := make(map[int]centralsim.TypeClock)
 	for _, a := range transitions[pid].Ancestors { // crea el mapa de LookAheads solo con los predecesores
@@ -43,7 +44,8 @@ func CreateLogicProcess(pid int, network []models.ProcessInfo, netFileName strin
 		receiveLAReqCh,
 		sendLookAheadCh,
 		partnersLookAheads,
-		maxLookAhead)
+		maxLookAhead,
+		sendLookAheadNext)
 	comMod := CreateCommunicationModule(
 		pid,
 		network,
@@ -55,7 +57,8 @@ func CreateLogicProcess(pid int, network []models.ProcessInfo, netFileName strin
 		receiveLACh,
 		receiveLAReqCh,
 		sendLookAheadCh,
-		killChan)
+		killChan,
+		sendLookAheadNext)
 	lp := LogicProcess{
 		simEngine:        simEngine,
 		communicationMod: comMod,

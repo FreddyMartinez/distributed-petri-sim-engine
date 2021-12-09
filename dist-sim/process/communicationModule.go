@@ -21,6 +21,7 @@ type CommunicationModule struct {
 	receiveLookAheadReqCh chan centralsim.LookAhead      // Recibe solicitud de LookAhead de proceso posterior
 	sendLookAheadCh       chan centralsim.LookAhead      // Envía LookAhead propio a proceso posterior
 	killChan              chan bool
+	sendLookAheadNext     chan centralsim.TypeClock
 }
 
 func CreateCommunicationModule(
@@ -35,6 +36,7 @@ func CreateCommunicationModule(
 	receiveLAReqCh chan centralsim.LookAhead,
 	sendLookAheadCh chan centralsim.LookAhead,
 	killChan chan bool,
+	sendLookAheadNext chan centralsim.TypeClock,
 ) *CommunicationModule {
 
 	process := network[pid]
@@ -56,6 +58,7 @@ func CreateCommunicationModule(
 		receiveLookAheadReqCh: receiveLAReqCh,
 		sendLookAheadCh:       sendLookAheadCh,
 		killChan:              killChan,
+		sendLookAheadNext:     sendLookAheadNext,
 	}
 
 	// Se lanzan rutinas para enviar y recibir mensajes
@@ -134,6 +137,13 @@ func (comMod *CommunicationModule) sender() {
 			msg := models.Message{MsgType: models.MsgLookAhead, Time: la.Time, Sender: comMod.pId}
 			proc := comMod.networkInfo[la.Process]
 			helpers.Send(msg, proc.Ip+":"+proc.Port, comMod.logger)
+
+		case time := <-comMod.sendLookAheadNext: // Envia a todos los procesos siguientes
+			msg := models.Message{MsgType: models.MsgLookAhead, Time: time, Sender: comMod.pId}
+			for _, p := range comMod.transitionsMap[comMod.pId].Successors {
+				proc := comMod.networkInfo[p]
+				helpers.Send(msg, proc.Ip+":"+proc.Port, comMod.logger)
+			}
 		}
 	}
 }
