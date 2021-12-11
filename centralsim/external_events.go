@@ -49,8 +49,8 @@ func (se *SimulationEngine) CalculateLookAhead() {
 				se.lookAheads[lar.Process] = lar.Time
 			}
 
-			// si no hay transiciones sensibilizadas, da el tiempo futuro máximo
-			if se.ilMislefs.IsTransSensib.isEmpty() {
+			// si no hay transiciones sensibilizadas ni eventos en cola, da el tiempo futuro máximo
+			if se.ilMislefs.IsTransSensib.isEmpty() && se.IlEventos.ListaEventosVacia() {
 				se.updateTimeWithLA() // actualiza el reloj local con el menor lookAhead
 				// El máximo es el LookAhead mínimo más el tiempo que le tome a un token atravesar la red
 				la.Time = se.iiRelojlocal + se.maxLookAhead
